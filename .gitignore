@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+prisma/*.db
+prisma/*.db-journal
+# Local verification data and prepared cross-project changes
+.local/
+.delivery/

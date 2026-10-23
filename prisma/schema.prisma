@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+  SHOPKEEPER
+}
+
+enum OrderStatus {
+  PLACED
+  ACCEPTED
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  place        String
+  role         Role     @default(STUDENT)
+  shopId       String?
+  shop         Shop?    @relation("ShopOwner", fields: [shopId], references: [id])
+  orders       Order[]  @relation("CustomerOrders")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Shop {
+  id        String    @id @default(cuid())
+  name      String
+  code      String    @unique
+  kind      String
+  eta       String
+  active    Boolean   @default(true)
+  owner     User[]    @relation("ShopOwner")
+  products  Product[]
+  orders    Order[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  price     Int
+  image     String
+  category  String
+  active    Boolean  @default(true)
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  lines     OrderLine[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  code       String      @unique
+  status     OrderStatus @default(PLACED)
+  total      Int
+  payment    String
+  address    String
+  customerId String
+  customer   User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  shopId     String
+  shop       Shop        @relation(fields: [shopId], references: [id])
+  lines      OrderLine[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model OrderLine {
+  id        String   @id @default(cuid())
+  quantity  Int
+  unitPrice Int
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}

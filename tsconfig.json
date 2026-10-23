@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/auth.ts",
+    "src/store.ts",
+    "src/types.ts",
+    "src/prisma.service.ts",
+    "src/platform/platform.ts",
+    "src/platform/admin-extra.ts",
+    "src/platform/security.ts"
+  ]
+}
