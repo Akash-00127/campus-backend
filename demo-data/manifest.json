@@ -1,0 +1,14 @@
+{
+  "source": "https://raw.githubusercontent.com/Hipo/university-domains-list/master/world_universities_and_domains.json",
+  "retrieved": "2026-10-29T17:24:19.617Z",
+  "note": "Community university directory, not certification of UGC recognition. Unknown locations/types are not verified. All campuses, shops, prices and users are fictional.",
+  "counts": {
+    "universities": 150,
+    "campuses": 150,
+    "users": 750,
+    "vendors": 300,
+    "categories": 1950,
+    "products": 12750,
+    "addresses": 450
+  }
+}
