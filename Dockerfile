@@ -23,6 +23,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+COPY demo-data/food-images ./demo-data/food-images
 
 RUN mkdir -p /app/uploads
 

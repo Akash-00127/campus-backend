@@ -11,10 +11,10 @@ async function main() {
   await dataSource.initialize();
   try {
     const repo = dataSource.getRepository(User);
-    if (await repo.existsBy({ email }))
-      throw new Error(
-        "Account already exists; refusing to change its role or password.",
-      );
+    if (await repo.existsBy({ email })) {
+      console.log("Administrator account already exists; bootstrap skipped.");
+      return;
+    }
     await repo.save(
       repo.create({
         email,

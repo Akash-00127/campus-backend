@@ -7,8 +7,10 @@ It is NOT an official UGC recognition register. Unknown cities/states/types requ
 verification. Guru Kashi University is included. Every campus and vendor is explicitly
 demo-only, with illustrative food imagery, sample prices and fictional users.
 
-Includes 150 campuses, 300 shops, 85 dishes per university (12,750 products),
-1,950 university-scoped categories, 450 students, 300 vendor accounts, 450 addresses.
+Includes 150 campuses, 300 shops, 161 dishes per university (24,150 products),
+3,000 university-scoped categories, 450 students, 300 vendor accounts, 450 addresses.
+The menu includes breakfast, lunch, dinner, street food, Indian sweets, bakery,
+burgers, pizza, hot drinks and cold drinks. Every menu item and price is a demo sample.
 No fake orders, payments, reviews or financial settlements are represented as real.
 
 ## Import into a teammate's local project
@@ -43,7 +45,26 @@ by seed, not by an SMS verification flow.
 
 An admin is created separately by the backend bootstrap configuration; its password
 is deliberately not exported in this dataset. Both clients use the same backend API.
-External illustrative image URLs require internet access and are not bundled files.
+Vendor cover images still use external illustrative URLs; product and category food
+photos are bundled locally as described below.
 
-To regenerate the fixture: `node scripts/build-team-demo.cjs`. This fetches the latest
-directory; use the committed SQL file for identical teammate data.
+## Food photography
+
+The demo menu uses 39 curated food photos for all 161 dish names. Photos are bundled
+in `food-images/`, served by the backend at `/demo-food/...`, and shared by the
+admin product table and student app. Several related dishes intentionally share a
+photo; these are sample menu illustrations, not the real vendors' dishes. Each
+photo's source, artist and license are recorded in `food-images.json`; the app
+links to its source from the product detail page. Review the individual licenses
+and replace demo photos with the vendor's own images before a production launch.
+
+To apply photos to an existing local demo database without replacing admin-edited
+images:
+
+```powershell
+docker compose cp demo-data/food-image-update.sql postgres:/tmp/food-image-update.sql
+docker compose exec postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /tmp/food-image-update.sql'
+```
+
+To regenerate the fixture: `node scripts/build-team-demo.cjs`. It reuses the committed
+university list and license when present, keeping teammate data consistent.

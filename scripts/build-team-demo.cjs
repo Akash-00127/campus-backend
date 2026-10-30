@@ -4,6 +4,8 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const bcrypt = require('bcrypt');
 const out = path.join(__dirname, '../demo-data');
+const foodImagePath=path.join(out,'food-images.json');
+const foodImages=fs.existsSync(foodImagePath)?JSON.parse(fs.readFileSync(foodImagePath,'utf8')).products:{};
 const id = key => { const s=createHash('sha256').update('campus-drop-team-demo-v1:'+key).digest('hex'); return `${s.slice(0,8)}-${s.slice(8,12)}-4${s.slice(13,16)}-a${s.slice(17,20)}-${s.slice(20,32)}`; };
 const quote = value => value == null ? 'NULL' : typeof value === 'boolean' ? String(value) : typeof value === 'number' ? String(value) : "'"+String(value).replaceAll("'","''")+"'";
 const groups = {
@@ -19,20 +21,33 @@ const groups = {
  'Rolls and Maggi': ['Masala Maggi','Cheese Maggi','Chicken Maggi','Paneer Roll','Egg Roll','Chicken Roll'],
  'Non-veg meals': ['Butter Chicken','Chicken Curry','Egg Curry','Fish Curry','Chicken Tikka'],
  'Desserts and shakes': ['Gulab Jamun','Rasgulla','Kheer','Chocolate Brownie','Vanilla Ice Cream','Chocolate Shake','Strawberry Shake','Oreo Shake'],
- 'Packaged essentials': ['Bottled Water','Salted Chips','Biscuits','Fruit Juice']
+ 'Packaged essentials': ['Bottled Water','Salted Chips','Biscuits','Fruit Juice'],
+ 'Breakfast specials': ['Jalebi','Kachori Sabzi','Aloo Puri','Bedmi Puri','Sabudana Khichdi','Besan Chilla','Bread Omelette','Egg Bhurji','Methi Thepla','Misal Pav','Pesarattu','Rava Dosa'],
+ 'Lunch specials': ['Kadhi Chawal','Dal Rice','Sambar Rice','Curd Rice','Veg Pulao','Paneer Thali','South Indian Thali','Punjabi Thali','Aloo Gobi','Bhindi Masala','Palak Paneer','Chicken Thali'],
+ 'Dinner specials': ['Shahi Paneer','Malai Kofta','Mix Veg Curry','Baingan Bharta','Amritsari Kulcha','Lachha Paratha','Tawa Roti','Chicken Korma','Tandoori Chicken','Chicken Kebab','Veg Korma','Dal Fry'],
+ 'Street food and chaat': ['Litti Chokha','Dahi Puri','Bhel Puri','Sev Puri','Papdi Chaat','Dahi Bhalla','Aloo Chaat','Momos Chaat','Paneer Pakora','Chilli Potato'],
+ 'Indian sweets': ['Rabri','Imarti','Gajar Halwa','Moong Dal Halwa','Soan Papdi','Besan Ladoo','Motichoor Ladoo','Rasmalai','Mysore Pak','Cham Cham'],
+ 'Bakery and quick bites': ['Veg Puff','Paneer Puff','Chicken Puff','Garlic Bread','Cheese Garlic Bread','Chocolate Muffin','Plain Croissant','Chocolate Croissant','Veg Wrap','Chicken Wrap'],
+ 'Cold drinks and coolers': ['Cola','Orange Soda','Lemon-Lime Soda','Masala Soda','Jaljeera','Watermelon Juice','Sweet Lime Juice','Buttermilk','Chocolate Milk','Mango Shake']
 };
 async function main(){
  fs.mkdirSync(out,{recursive:true});
  const source='https://raw.githubusercontent.com/Hipo/university-domains-list/master/world_universities_and_domains.json';
- const response=await fetch(source); if(!response.ok)throw Error('University source unavailable');
- const all=await response.json();
- const unique=new Map();
- for(const u of all)if(u.country==='India' && /university/i.test(u.name)) unique.set(u.name.trim().toLowerCase(),u);
- unique.delete('guru kashi university');
- const universities=[{name:'Guru Kashi University',country:'India','state-province':'Punjab',web_pages:['https://gku.ac.in/']},...Array.from(unique.values()).sort((a,b)=>a.name.localeCompare(b.name)).slice(0,149)];
+ const cachedUniversities=path.join(out,'universities.json');
+ let universities;
+ if(fs.existsSync(cachedUniversities)) universities=JSON.parse(fs.readFileSync(cachedUniversities,'utf8'));
+ else {
+  const response=await fetch(source); if(!response.ok)throw Error('University source unavailable');
+  const all=await response.json();
+  const unique=new Map();
+  for(const u of all)if(u.country==='India' && /university/i.test(u.name)) unique.set(u.name.trim().toLowerCase(),u);
+  unique.delete('guru kashi university');
+  universities=[{name:'Guru Kashi University',country:'India','state-province':'Punjab',web_pages:['https://gku.ac.in/']},...Array.from(unique.values()).sort((a,b)=>a.name.localeCompare(b.name)).slice(0,149)];
+ }
  if(universities.length!==150)throw Error('Expected 150 distinct universities');
  fs.writeFileSync(path.join(out,'universities.json'),JSON.stringify(universities,null,2));
- const license=await fetch('https://raw.githubusercontent.com/Hipo/university-domains-list/master/LICENSE.txt');if(!license.ok)throw Error('License unavailable');fs.writeFileSync(path.join(out,'UNIVERSITY-SOURCE-LICENSE.txt'),await license.text());
+ const licensePath=path.join(out,'UNIVERSITY-SOURCE-LICENSE.txt');
+ if(!fs.existsSync(licensePath)){const license=await fetch('https://raw.githubusercontent.com/Hipo/university-domains-list/master/LICENSE.txt');if(!license.ok)throw Error('License unavailable');fs.writeFileSync(licensePath,await license.text());}
  const hash=await bcrypt.hash('CampusDemo@2026!',12);
  const sql=['-- Campus Drop DEMO fixture. Data only: run project migrations first.', '-- Never import known-password demo accounts into production.','BEGIN;'];
  const counts={};
@@ -49,8 +64,8 @@ async function main(){
    insert('vendors',{id:vid,slug:`team-demo-${index+1}-${n+1}`,name:n?'Demo Snacks & Drinks':'Demo Campus Kitchen',ownerId:owner,universityId:uid,campusId:cid,address:'Demo Campus',description:'Fictional shop with sample menu and prices. Not an affiliated real vendor.',operatingStatus:'OPEN',approvalStatus:'APPROVED',verified:true,codEnabled:true,commissionRateBps:1500,preparationMinutes:15,coverImage:photo,operatingHours:JSON.stringify({alwaysOpen:true,open:'00:00',close:'23:59'})});
   }
   Object.entries(groups).forEach(([category,dishes],g)=>{
-   const categoryId=id('category:'+key+category);insert('categories',{id:categoryId,universityId:uid,name:category,image:photo,active:true});
-   dishes.forEach((name,p)=>insert('products',{id:id('product:'+key+name),vendorId:vendors[g%2],universityId:uid,campusId:cid,categoryId,name,description:'Demo menu item. Sample pricing and illustrative image; availability is for testing only.',pricePaise:(30+g*10+p*5)*100,image:photo,vegetarian:!(/chicken|egg|mutton|fish/i.test(name)),stock:100,active:true,available:true}));
+   const categoryId=id('category:'+key+category);insert('categories',{id:categoryId,universityId:uid,name:category,image:foodImages[dishes[0]]||photo,active:true});
+   dishes.forEach((name,p)=>insert('products',{id:id('product:'+key+name),vendorId:vendors[g%2],universityId:uid,campusId:cid,categoryId,name,description:'Demo menu item. Sample pricing and illustrative image; availability is for testing only.',pricePaise:(g<13?30+g*10+p*5:({13:35,14:75,15:95,16:35,17:45,18:40,19:30}[g]+p*8))*100,image:foodImages[name]||photo,vegetarian:!(/chicken|egg|mutton|fish|omelette|bhurji|kebab/i.test(name)),stock:100,active:true,available:true}));
   });
   ['Ramesh','Mahesh','Atul'].forEach((name,n)=>{
    const userId=id('student:'+key+name);const email=index===0?`${name.toLowerCase()}@demo.campusdrop.test`:`${name.toLowerCase()}.${index+1}@demo.campusdrop.test`;
@@ -59,7 +74,10 @@ async function main(){
   });
  });
  sql.push('COMMIT;'); fs.writeFileSync(path.join(out,'campus-drop-demo.sql'),sql.join('\n')+'\n');
- fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify({source,retrieved:new Date().toISOString(),note:'Community university directory, not certification of UGC recognition. Unknown locations/types are not verified. All campuses, shops, prices and users are fictional.',counts},null,2));
+ const manifestPath=path.join(out,'manifest.json');
+ const previousManifest=fs.existsSync(manifestPath)?JSON.parse(fs.readFileSync(manifestPath,'utf8')):{};
+ fs.writeFileSync(manifestPath,JSON.stringify({source,retrieved:previousManifest.retrieved||new Date().toISOString(),note:'Community university directory, not certification of UGC recognition. Unknown locations/types are not verified. All campuses, shops, prices and users are fictional.',counts},null,2));
  console.log(counts);
 }
-main().catch(e=>{console.error(e);process.exitCode=1});
+module.exports={groups,id};
+if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1});

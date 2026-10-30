@@ -19,6 +19,7 @@ async function bootstrap() {
     throw new Error("Configure a PostgreSQL DATABASE_URL.");
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useStaticAssets("uploads", { prefix: "/uploads" });
+  app.useStaticAssets("demo-data/food-images", { prefix: "/demo-food" });
   const origins = (process.env.CORS_ORIGIN || "http://localhost:3000")
     .split(",")
     .map((x) => x.trim());

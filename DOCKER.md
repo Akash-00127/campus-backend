@@ -8,8 +8,8 @@ docker compose up -d --build
 
 The stack uses one PostgreSQL database and starts these services:
 
-- Student app web preview: http://localhost:8082
-- Admin panel: http://localhost:3002
+- Student app web preview (Docker): http://localhost:8090
+- Admin panel (Docker): http://localhost:3010
 - NestJS API: http://localhost:4000/v1/health
 - PostgreSQL: localhost:5434
 
