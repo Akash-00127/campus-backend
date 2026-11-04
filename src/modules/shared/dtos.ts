@@ -59,10 +59,18 @@ export class AdminVendorCreateDto {
   @IsString() @MinLength(5) @MaxLength(500) address!: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
 }
+export class PhoneChangeOtpRequestDto {
+  @IsString() @Matches(/^\d{10}$/) phone!: string;
+}
 export class ProfileDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(100) name?: string;
+  @IsOptional() @IsEmail() @MaxLength(254) email?: string;
   @IsOptional() @IsString() @Matches(/^\d{10}$/) phone?: string;
+  @IsOptional() @IsUUID() universityId?: string;
+  @IsOptional() @IsUUID() campusId?: string;
   @IsOptional() @IsString() @MaxLength(500) photo?: string;
+  @IsOptional() @IsString() @Matches(/^\d{6}$/) otp?: string;
+  @IsOptional() @IsString() @MinLength(20) @MaxLength(2000) otpChallenge?: string;
 }
 export class PasswordDto {
   @IsString() @MaxLength(72) currentPassword!: string;

@@ -1,6 +1,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { randomUUID } = require("node:crypto");
+const { randomUUID, randomInt } = require("node:crypto");
+require("dotenv").config();
 process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   "postgresql://campus_test@127.0.0.1:55439/campus_drop_test";
@@ -36,6 +37,8 @@ let app,
   order;
 const tokens = {};
 const suffix = randomUUID();
+const applicantPhone = String(randomInt(6000000000, 8000000000));
+const managedPhone = String(randomInt(8000000000, 10000000000));
 async function http(path, method = "GET", body, role = "student") {
   const response = await fetch(base + path, {
     method,
@@ -214,7 +217,7 @@ test("new vendor is pending and cannot publish products", async () => {
   const otp = await http(
     "/v1/auth/registration-otp/request",
     "POST",
-    { phone: "9999999999" },
+    { phone: applicantPhone, role: "VENDOR" },
     "anonymous",
   );
   assert.equal(otp.status, 201);
@@ -225,7 +228,7 @@ test("new vendor is pending and cannot publish products", async () => {
       name: "TEST Applicant",
       email: `applicant-${suffix}@example.invalid`,
       password: "TestPasswordOnly!123",
-      phone: "9999999999",
+      phone: applicantPhone,
       universityId: university.id,
       campusId: campus.id,
       shopName: "TEST Pending shop",
@@ -405,8 +408,7 @@ test("admin-created vendors remain pending and creation is audited without expos
   const body = {
     name: "TEST Admin-created owner",
     email: `managed-${suffix}@example.invalid`,
-    password: "TestPasswordOnly!123",
-    phone: "9999999999",
+    phone: managedPhone,
     universityId: university.id,
     campusId: campus.id,
     shopName: "TEST Managed shop",

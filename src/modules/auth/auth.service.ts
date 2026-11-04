@@ -7,9 +7,10 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { DataSource } from "typeorm";
 import * as bcrypt from "bcrypt";
-import { createHash, randomInt, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomInt, randomUUID } from "node:crypto";
 import {
   Campus,
+  Product,
   RecordStatus,
   University,
   User,
@@ -24,6 +25,7 @@ import {
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
   ProfileDto,
+  PhoneChangeOtpRequestDto,
   RegistrationOtpRequestDto,
   RegisterDto,
   VendorRegisterDto,
@@ -49,6 +51,10 @@ export class AuthService {
   }
   private otpHash(otp: string) {
     return createHash("sha256").update(otp).digest("hex");
+  }
+  private phoneChangeOtpHash(otp: string) {
+    const secret = process.env.PHONE_CHANGE_OTP_SECRET || process.env.REGISTRATION_OTP_SECRET || process.env.JWT_SECRET!;
+    return createHmac("sha256", secret).update(otp).digest("hex");
   }
   async requestRegistrationOtp(dto: RegistrationOtpRequestDto) {
     const phone = dto.phone.trim();
@@ -81,6 +87,45 @@ export class AuthService {
         claim.phone !== dto.phone.trim() ||
         claim.role !== (vendor ? "VENDOR" : "STUDENT") ||
         claim.otpHash !== this.otpHash(dto.otp)
+      )
+        throw new ForbiddenException("The verification code is incorrect or expired.");
+    } catch (error) {
+      if (error instanceof ForbiddenException) throw error;
+      throw new ForbiddenException("The verification code is incorrect or expired.");
+    }
+  }
+  async requestPhoneChangeOtp(user: User, dto: PhoneChangeOtpRequestDto) {
+    const phone = dto.phone.trim();
+    if (phone === user.phone)
+      throw new ConflictException("This is already your current phone number.");
+    if (await this.db.getRepository(User).existsBy({ phone }))
+      throw new ConflictException("An account with this phone number already exists.");
+    const localDemoOtp = process.env.LOCAL_DEMO_OTP === "true";
+    if (process.env.NODE_ENV === "production" && !localDemoOtp)
+      throw new ForbiddenException("Phone verification OTP delivery is not configured.");
+    const otp = process.env.DEMO_PHONE_CHANGE_OTP || String(randomInt(100000, 1000000));
+    const challenge = this.jwt.sign(
+      { purpose: "PHONE_CHANGE_OTP", userId: user.id, phone, otpHash: this.phoneChangeOtpHash(otp) },
+      { expiresIn: "10m", secret: process.env.PHONE_CHANGE_OTP_SECRET || process.env.REGISTRATION_OTP_SECRET || process.env.JWT_SECRET },
+    );
+    return {
+      message: "Verification code generated.",
+      challenge,
+      expiresInSeconds: 600,
+      ...(process.env.NODE_ENV !== "production" || localDemoOtp ? { demoOtp: otp } : {}),
+    };
+  }
+  private verifyPhoneChangeOtp(user: User, dto: ProfileDto, phone: string) {
+    try {
+      const claim = this.jwt.verify<{ purpose?: string; userId?: string; phone?: string; otpHash?: string }>(dto.otpChallenge || "", {
+        secret: process.env.PHONE_CHANGE_OTP_SECRET || process.env.REGISTRATION_OTP_SECRET || process.env.JWT_SECRET,
+      });
+      if (
+        claim.purpose !== "PHONE_CHANGE_OTP" ||
+        claim.userId !== user.id ||
+        claim.phone !== phone ||
+        !dto.otp ||
+        claim.otpHash !== this.phoneChangeOtpHash(dto.otp)
       )
         throw new ForbiddenException("The verification code is incorrect or expired.");
     } catch (error) {
@@ -211,7 +256,77 @@ export class AuthService {
     return { ...publicUser(user), university, campus, vendor };
   }
   async profile(user: User, dto: ProfileDto) {
-    await this.db.getRepository(User).update(user.id, dto);
+    const changes: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      photo?: string;
+      universityId?: string;
+      campusId?: string;
+    } = {};
+    if (dto.name !== undefined) changes.name = dto.name.trim();
+    if (dto.email !== undefined) changes.email = dto.email.trim().toLowerCase();
+    if (dto.photo !== undefined) changes.photo = dto.photo;
+    if (dto.phone !== undefined) {
+      const phone = dto.phone.trim();
+      if (phone !== user.phone) {
+        if (!dto.otp || !dto.otpChallenge)
+          throw new ForbiddenException("Verify your new phone number with a verification code.");
+        this.verifyPhoneChangeOtp(user, dto, phone);
+        if (await this.db.getRepository(User).existsBy({ phone }))
+          throw new ConflictException("An account with this phone number already exists.");
+      }
+      changes.phone = phone;
+    }
+    if (dto.universityId !== undefined || dto.campusId !== undefined) {
+      if (!dto.universityId || !dto.campusId)
+        throw new ForbiddenException("Select both a university and a campus.");
+      const [university, campus] = await Promise.all([
+        this.db.getRepository(University).findOneBy({
+          id: dto.universityId,
+          status: RecordStatus.ACTIVE,
+        }),
+        this.db.getRepository(Campus).findOneBy({
+          id: dto.campusId,
+          universityId: dto.universityId,
+          status: RecordStatus.ACTIVE,
+        }),
+      ]);
+      if (!university || !campus)
+        throw new ForbiddenException("Select an active campus within the selected university.");
+      changes.universityId = university.id;
+      changes.campusId = campus.id;
+    }
+    const campusChanged =
+      changes.universityId !== undefined &&
+      (changes.universityId !== user.universityId || changes.campusId !== user.campusId);
+    try {
+      await this.db.transaction(async (manager) => {
+        await manager.update(User, user.id, changes);
+        if (user.role === UserRole.VENDOR) {
+          const vendor = await manager.findOneBy(Vendor, { ownerId: user.id });
+          if (!vendor) throw new ForbiddenException("Vendor profile not found.");
+          if (changes.phone !== undefined)
+            await manager.update(Vendor, { id: vendor.id }, { phone: changes.phone });
+          if (campusChanged) {
+            await manager.update(Vendor, { id: vendor.id }, {
+              universityId: changes.universityId!,
+              campusId: changes.campusId!,
+            });
+            const productChanges: any = {
+              universityId: changes.universityId!,
+              campusId: changes.campusId!,
+              ...(changes.universityId !== user.universityId ? { categoryId: () => "NULL" } : {}),
+            };
+            await manager.update(Product, { vendorId: vendor.id }, productChanges);
+          }
+        }
+      });
+    } catch (error: any) {
+      if (error.code === "23505")
+        throw new ConflictException("This email or mobile number is already in use.");
+      throw error;
+    }
     return this.me(
       await this.db.getRepository(User).findOneByOrFail({ id: user.id }),
     );
