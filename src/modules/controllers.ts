@@ -41,6 +41,7 @@ import {
   PasswordDto,
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
+  PhoneChangeOtpRequestDto,
   ProductDto,
   ProfileDto,
   RecordStatusDto,
@@ -78,6 +79,12 @@ export class AuthController {
   registrationOtp(@Body() dto: RegistrationOtpRequestDto) {
     return this.service.requestRegistrationOtp(dto);
   }
+  @Post("phone-change-otp/request")
+  @UseGuards(JwtGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  phoneChangeOtp(@CurrentUser() user: User, @Body() dto: PhoneChangeOtpRequestDto) {
+    return this.service.requestPhoneChangeOtp(user, dto);
+  }
   @Post("vendor-register")
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   vendor(@Body() dto: VendorRegisterDto) {
@@ -86,7 +93,7 @@ export class AuthController {
   @Get("me") @UseGuards(JwtGuard) me(@CurrentUser() user: User) {
     return this.service.me(user);
   }
-  @Patch("profile") @UseGuards(JwtGuard) profile(
+  @Patch("profile") @UseGuards(JwtGuard) @Throttle({ default: { limit: 5, ttl: 60000 } }) profile(
     @CurrentUser() user: User,
     @Body() dto: ProfileDto,
   ) {

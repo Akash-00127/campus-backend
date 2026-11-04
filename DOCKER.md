@@ -1,12 +1,14 @@
 # Run Campus Drop locally with Docker
 
-From this folder, start every service with:
+From this folder, start PostgreSQL and the backend with:
 
 ```powershell
-docker compose up -d --build
+docker compose up -d --build --wait
 ```
 
-The stack uses one PostgreSQL database and starts these services:
+The backend runs independently. Optional clients require sibling folders `../campus admin`
+and `../campus app`. When present, run `docker compose --profile clients up -d --build`.
+Service addresses:
 
 - Student app web preview (Docker): http://localhost:8090
 - Admin panel (Docker): http://localhost:3010

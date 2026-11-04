@@ -6,19 +6,19 @@ seller-delivery launch flow. It does not implement every feature in the long-ter
 
 ## Open the local projects
 
-The existing local setup is already migrated. Run `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1`
-from this backend directory to start PostgreSQL, API and admin. Open http://127.0.0.1:3000/login.
-The generated owner credentials are in `.local/LOCAL-ACCESS.txt`; do not share or commit that file.
-The API health endpoint is http://127.0.0.1:4000/v1/health.
+Run `powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1` from this backend
+directory with Docker Desktop running. It builds and starts PostgreSQL and the API and waits
+for health checks. The API health endpoint is http://127.0.0.1:4000/v1/health.
+Administrator credentials come from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env`.
 
-The active application database is the PostgreSQL connection in `DATABASE_URL`. This workstation uses
-`127.0.0.1:5432/campus_drop_dev` with password authentication. The former `55439` cluster is an
-isolated test-only fixture; the API, admin panel and mobile app never use it.
-`campus_drop_dev` contains the active development tenant and catalog. `campus_drop_test` is only used
-when explicitly running integration tests; never deploy either local fixture.
+Docker PostgreSQL is exposed at `127.0.0.1:5434`; the application database is `campus_drop`.
+For native Node development, set `DATABASE_URL` to that database, run `npm run db:migrate`,
+`npm run db:seed`, then `npm start` after building. Stop the Docker backend first to free port 4000.
+Tests use the separate `campus_drop_test` database through `TEST_DATABASE_URL`.
 
-The machine's global npm shim is broken. Until repaired, use
-`node "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js"` in place of `npm`.
+The admin and app are separate sibling projects and are optional. If both are installed,
+pass `-WithClients` to the startup script. Admin opens at http://localhost:3010/login
+and the app web preview at http://localhost:8090. See [DOCKER.md](DOCKER.md).
 
 In `../campus app`, configure `EXPO_PUBLIC_API_URL` then run `npm start`.
 Android emulator default: `http://10.0.2.2:4000/v1`. A physical phone needs the computer's
@@ -70,7 +70,10 @@ Schema synchronization is disabled. Migration rollback intentionally requires ma
 
 ## Verification
 
-With the isolated test database migrated, run `npm test`. Override TEST_DATABASE_URL if needed;
+Set `TEST_DATABASE_URL` to a connection ending in `/campus_drop_test`, run
+`npm run db:test:prepare`, then `npm test`. The preparation command creates that database
+if missing and applies migrations; its role needs database creation permission on first use.
+Override TEST_DATABASE_URL if needed;
 the database name must remain `campus_drop_test`. Tests never use the application's DATABASE_URL.
 They exercise authorization, tenant isolation, concurrent stock/idempotency, state transitions, COD,
 PIN validation, cancellation, notification ownership and token revocation.
