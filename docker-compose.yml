@@ -81,7 +81,7 @@ services:
         condition: service_healthy
     environment:
       EXPO_PUBLIC_WEB_API_URL: http://localhost:4002/v1
-      EXPO_PUBLIC_API_URL: http://192.168.29.8:4002/v1
+      EXPO_PUBLIC_API_URL: http://10.200.168.231:4002/v1
     ports:
       - "8090:8082"
     volumes:
