@@ -26,10 +26,13 @@ import {
 } from "../../platform/entities";
 
 export class LoginDto {
-  @IsEmail() @MaxLength(254) email!: string;
+  @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+  @IsOptional() @Matches(/^\d{10}$/) phone?: string;
   @IsString() @MinLength(8) @MaxLength(72) password!: string;
 }
-export class RegisterDto extends LoginDto {
+export class RegisterDto {
+  @IsEmail() @MaxLength(254) email!: string;
+  @IsString() @MinLength(8) @MaxLength(72) password!: string;
   @IsString() @MinLength(2) @MaxLength(100) name!: string;
   @IsUUID() universityId!: string;
   @IsUUID() campusId!: string;
@@ -81,6 +84,7 @@ export class PasswordResetRequestDto {
   @IsOptional() @IsString() @Matches(/^\d{10}$/) phone?: string;
 }
 export class PasswordResetConfirmDto extends PasswordResetRequestDto {
+  @IsString() @MinLength(20) @MaxLength(2000) challenge!: string;
   @IsString() @Matches(/^\d{6}$/) otp!: string;
   @IsString() @MinLength(8) @MaxLength(72) newPassword!: string;
 }

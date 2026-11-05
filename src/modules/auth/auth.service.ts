@@ -227,18 +227,19 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    if (!!dto.email === !!dto.phone) throw new UnauthorizedException("Enter your email or mobile number.");
     const user = await this.db
       .getRepository(User)
       .createQueryBuilder("u")
       .addSelect("u.passwordHash")
-      .where("u.email = :email", { email: dto.email.trim().toLowerCase() })
+      .where(dto.phone ? "u.phone = :identity" : "u.email = :identity", { identity: dto.phone || dto.email?.trim().toLowerCase() })
       .getOne();
     if (
       !user ||
       user.status !== RecordStatus.ACTIVE ||
       !(await bcrypt.compare(dto.password, user.passwordHash))
     )
-      throw new UnauthorizedException("Invalid email or password.");
+      throw new UnauthorizedException("Incorrect sign-in details.");
     return this.response(user);
   }
   async me(user: User) {
@@ -352,22 +353,31 @@ export class AuthService {
     // A real deployment must replace this development bridge with an SMS or
     // email delivery provider. Never return OTPs in production responses.
     const user = await this.passwordResetUser(dto);
-    if (process.env.NODE_ENV === "production")
-      return { message: "If this account exists, reset instructions have been sent." };
-    if (!user) throw new ForbiddenException("No active account was found for this email or mobile number.");
+    if (process.env.NODE_ENV === "production" && process.env.LOCAL_DEMO_OTP !== "true")
+      throw new ForbiddenException("Password recovery is currently unavailable. Contact support.");
+    if (!user || ![UserRole.STUDENT, UserRole.VENDOR].includes(user.role)) throw new ForbiddenException("No active student or vendor account matches those details.");
+    const otp = String(randomInt(100000, 1000000));
     return {
       message: "Demo verification code generated.",
-      demoOtp: process.env.DEMO_PASSWORD_RESET_OTP || "123456",
+      demoOtp: otp,
+      challenge: this.jwt.sign({purpose:"RESET", uid:user.id, version:user.tokenVersion, digest:this.phoneChangeOtpHash(otp)}, {expiresIn:"5m"}),
     };
   }
   async confirmPasswordReset(dto: PasswordResetConfirmDto) {
-    if (process.env.NODE_ENV === "production")
+    if (process.env.NODE_ENV === "production" && process.env.LOCAL_DEMO_OTP !== "true")
       throw new ForbiddenException("Password reset delivery is not configured.");
-    if (dto.otp !== (process.env.DEMO_PASSWORD_RESET_OTP || "123456"))
-      throw new ForbiddenException("The verification code is incorrect.");
     const user = await this.passwordResetUser(dto);
-    if (!user) throw new ForbiddenException("No active account was found for this email or mobile number.");
-    await this.setPassword(user.id, dto.newPassword);
+    if (!user || ![UserRole.STUDENT, UserRole.VENDOR].includes(user.role)) throw new ForbiddenException("Invalid recovery request.");
+    try {
+      const claim = this.jwt.verify(dto.challenge);
+      if (claim.purpose !== "RESET" || claim.uid !== user.id || claim.version !== user.tokenVersion || claim.digest !== this.phoneChangeOtpHash(dto.otp)) throw Error();
+    } catch { throw new ForbiddenException("The code is incorrect or expired. Request a new one."); }
+    const passwordHash = await bcrypt.hash(dto.newPassword, 8);
+    await this.db.transaction(async manager => {
+      const result = await manager.update(User, { id:user.id, tokenVersion:user.tokenVersion, status:RecordStatus.ACTIVE }, {passwordHash, tokenVersion:user.tokenVersion + 1});
+      if (!result.affected) throw new ForbiddenException("Request a fresh code and try again.");
+      await manager.delete(DeviceToken, {userId:user.id});
+    });
     return { message: "Password reset. Please sign in with your new password." };
   }
   private passwordResetUser(dto: PasswordResetRequestDto) {
